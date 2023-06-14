@@ -9,7 +9,7 @@ conda activate transformer
 conda install -c pytorch torchtext
 pip install pytz six spacy
 ```
-- 上述torchtext包的安装指令可能会导致安装cpu版的torch. 如果安装了cpu版本, 建议下载whl文件本地安装 (百度).
+- 上述torchtext包的安装指令可能会导致安装cpu版的torch. 如果安装了cpu版本, 建议下载whl文件本地安装.
     - cuda_11.3选用的[whl文件](https://download.pytorch.org/whl/): torch-1.10.0+cu113-cp38-cp38-linux_x86_64.whl 和 torchtext-0.11.0-cp38-cp38-linux_x86_64.whl
 
 # Preparation
@@ -44,5 +44,5 @@ python translate.py -load_weights weights -src_lang en_core_web_sm -trg_lang fr_
     - 例如, 训练集中有些空格是 `\u202f` 和 `\xa0` 类型, 导致部分翻译结果中包含该字符.
 
 ## 1. 性能评估
-- BLEU评估: 推理时输入 `$config` 设置评估, 默认不评估.
+- BLEU评估: 推理时输入 `$config` 开启评估, 默认不评估.
     - 评估函数是translate.py的calculate_bleu函数.
