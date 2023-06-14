@@ -12,8 +12,8 @@ import argparse
 from Models import get_model
 from Beam import beam_search
 from nltk.corpus import wordnet
-from torch.autograd import Variable
 import re
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
 def get_synonym(word, SRC):
     syns = wordnet.synsets(word)
@@ -41,21 +41,55 @@ def translate_sentence(sentence, model, opt, SRC, TRG):
             indexed.append(SRC.vocab.stoi[tok])
         else:
             indexed.append(get_synonym(tok, SRC))
-    sentence = Variable(torch.LongTensor([indexed]), device=opt.device)
+    sentence = torch.tensor([indexed], dtype=torch.int64, device=opt.device)
 
     sentence = beam_search(sentence, model, SRC, TRG, opt)
 
     return multiple_replace({' ?': '?', ' !': '!', ' .': '.', '\' ': '\'', ' ,': ','}, sentence)
 
 def translate(opt, model, SRC, TRG):
-    sentences = opt.text.lower().split('.')
+    if type(opt.text) == str:
+        sentences = [opt.text]
+    else:
+        sentences = opt.text
     translated = []
 
     for sentence in sentences:
-        translated.append(translate_sentence(sentence + '.', model, opt, SRC, TRG).capitalize())
+        translated.append(translate_sentence(sentence.lower() + '.', model, opt, SRC, TRG).capitalize())
 
-    return (' '.join(translated))
+    return translated
 
+def clean(sentence):
+    sentence = multiple_replace({'\u202f': '', '\xa0': '', '!': '', '.': '', '   ': ' ', '  ': ' '}, sentence)
+    return sentence.strip()
+
+def calculate_bleu(reference, candidate):
+    """
+    Calculate BLEU score for single sentence.
+    Then average BLEU scores.
+    https://blog.csdn.net/weixin_44755244/article/details/102831602
+    """
+    score = []
+    smoothie = SmoothingFunction().method1
+    for ref, cand in zip(reference, candidate):
+        ref, cand = clean(ref), clean(cand)
+        ref = [ref.split(' ')]
+        cand = cand.split(' ')
+        score.append(sentence_bleu(ref, cand, smoothing_function=smoothie))
+    return sum(score)/len(score)
+
+# def calculate_bleu(reference, candidate):
+#     """
+#     Calculate BLEU score for all sentences
+#     """
+#     smoothie = SmoothingFunction().method1
+#     reference = ' '.join(reference)
+#     candidate = ' '.join(candidate)
+#     reference = clean(reference)
+#     candidate = clean(candidate)
+#     reference = [reference.split(' ')]
+#     candidate = candidate.split(' ')
+#     return sentence_bleu(reference, candidate, smoothing_function=smoothie)
 
 def main():
     
@@ -75,6 +109,7 @@ def main():
     opt = parser.parse_args()
 
     opt.device = 'cuda' if opt.no_cuda is False else 'cpu'
+    opt.is_bleu = 'n'
  
     assert opt.k > 0
     assert opt.max_len > 10
@@ -86,15 +121,36 @@ def main():
         opt.text =input("Enter a sentence to translate (type 'f' to load from file, or 'q' to quit):\n")
         if opt.text=="q":
             break
+        if opt.text=='$config':
+            opt.is_bleu = input("Whether to calculate BLEU score (y/n):\n")
+            continue
         if opt.text=='f':
-            fpath =input("Enter a sentence to translate (type 'f' to load from file, or 'q' to quit):\n")
+            fpath =input("Enter file path to translate (path or relative path):\n")
             try:
-                opt.text = ' '.join(open(opt.text, encoding='utf-8').read().split('\n'))
+                opt.text = open(fpath, encoding='utf-8').read().split('\n')
             except:
                 print("error opening or reading text file")
                 continue
-        phrase = translate(opt, model, SRC, TRG)
-        print('> '+ phrase + '\n')
+            if opt.is_bleu=='y':
+                ref_path = input("Enter file path of reference translation:\n")
+                try:
+                    reference = open(ref_path, encoding='utf-8').read().split('\n')
+                except:
+                    print("error opening or reading reference file")
+                    continue
+        else:
+            if opt.is_bleu=='y':
+                reference = [input("Enter reference translation:\n")]
+        phrases = translate(opt, model, SRC, TRG)
+        if opt.is_bleu=='y':
+            bleu = calculate_bleu(reference, phrases)
+        if len(phrases) > 50:
+            phrases = phrases[:50]
+        for phrase in phrases:
+            print('> '+ phrase)
+        if opt.is_bleu=='y':
+            print('BLEU score: ', bleu)
+        print('')
 
 if __name__ == '__main__':
     main()

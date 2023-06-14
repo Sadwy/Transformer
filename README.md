@@ -1,72 +1,48 @@
-# Transformer
+# Install
+```shell
+# 系统: Ubuntu 21.04
+# 创建conda环境
+conda create -n transformer python=3.8 -y
+conda activate transformer
 
-This is a pytorch implementation of the transformer model. If you'd like to understand the model, or any of the code better, please refer to <a href=https://towardsdatascience.com/how-to-code-the-transformer-in-pytorch-24db27c8f9ec>my tutorial</a>.
-
-Using the Europarl dataset plus the dataset in the data folder, I was able to achieve a BLEU score of 0.39 on the test set (current SOTA is around 0.42), after 4/5 days of training on a single 8gb GPU. For more results see the tutorial again.
-
-# Train the model immediately on FloydHub
-
-[![Run on FloydHub](https://static.floydhub.com/button/button-small.svg)](https://floydhub.com/run)
-
-Launch a [FloydHub Workspace](https://www.floydhub.com/product/build) to start training this model with 1 click. Workspace is a GPU-enabled cloud IDE for machine learning. It provides a fully configured environment so you can start hacking right away, without worrying about dependencies, data sets, etc.
-
-Once you've started the workspace, run the 'start_here' notebook or type 'floyd run' into the workspace terminal. This will begin to train the model on the sample dataset.
-
-# Usage
-
-Two text files containing parallel sentences (seperated by '\n' characters) in two languages are required to train the model. See an example of this in the data/ folder (french.txt and english.txt).
-
-To begin training, run this code:
+# 配置环境包
+conda install -c pytorch torchtext
+pip install pytz six spacy
 ```
-python train.py -src_data path/lang1.txt -trg_data path/lang2.txt -src_lang lang1 -trg_lang lang2
-```
-The spacy tokenizer is used to tokenize the text, hence only languages supported by spacy are supported by this program. The languages supported by Spacy and their codes are:
+- 上述torchtext包的安装指令可能会导致安装cpu版的torch. 如果安装了cpu版本, 建议下载whl文件本地安装 (百度).
+    - cuda_11.3选用的whl文件: torch-1.10.0+cu113-cp38-cp38-linux_x86_64.whl 和 torchtext-0.11.0-cp38-cp38-linux_x86_64.whl
 
-English : 'en'<br />
-French : 'fr'<br />
-Portugese : 'pt'<br />
-Italian : 'it'<br />
-Dutch : 'nl'<br />
-Spanish : 'es'<br />
-German : 'de'<br />
-
-For example, to train tan English->French translator on the datasets provided in the data folder, you would run the following:
-```
-python train.py -src_data data/english.txt -trg_data data/french.txt -src_lang en -trg_lang fr
-```
-Additional parameters:<br />
--epochs : how many epochs to train data for (default=2)<br />
--batch_size : measured as number of tokens fed to model in each iteration (default=1500)<br />
--n_layers : how many layers to have in Transformer model (default=6)<br />
--heads : how many heads to split into for multi-headed attention (default=8)<br />
--no_cuda : adding this will disable cuda, and run model on cpu<br />
--SGDR : adding this will implement stochastic gradient descent with restarts, using cosine annealing<br />
--d_model : dimension of embedding vector and layers (default=512)<br />
--dropout' : decide how big dropout will be (default=0.1)<br />
--printevery : how many iterations run before printing (default=100)<br />
--lr : learning rate (default=0.0001)<br />
--load_weights : if loading pretrained weights, put path to folder where previous weights and pickles were saved <br />
--max_strlen : sentenced with more words will not be included in dataset (default=80)<br />
--checkpoint : enter a number of minutes. Model's weights will then be saved every this many minutes to folder 'weights/'<br />
-# Training and Translating
-
-```
-python train.py -src_data data/english.txt -trg_data data/french.txt -src_lang en -trg_lang fr -epochs 10
-```
-This code gave the following results on a K100 GPU with 8bg RAM:
-
-![screen shot 2018-09-18 at 21 35 55](https://user-images.githubusercontent.com/28839356/45754258-1656fc00-bc13-11e8-9506-5ace6fb6b79c.png)
-
-After saving the results to folder 'weights', the model can then be tested:
-```
-python translate.py -load_weights weights
+# Preparation
+```shell
+# 下载预训练模型
+# 网络问题可能导致下载失败, 可以多试几次, 或其他方法(比如下载压缩包本地安装, 百度)
+python -m spacy download en_core_web_sm
+python -m spacy download fr_core_news_sm
 ```
 
-![screen shot 2018-09-18 at 21 40 08](https://user-images.githubusercontent.com/28839356/45754259-18b95600-bc13-11e8-86c7-a07fe18b1ecc.png)
+# Train
+```shell
+# 训练 (单卡)
+python train.py -src_data data/english.txt -trg_data data/french.txt -src_lang en_core_web_sm -trg_lang fr_core_news_sm -epochs 10
+```
+- 训练结束后会提示是否保存权重, 建议保存到 `weights` 文件夹 (会自动创建).
 
-So with a small dataset of 150,000 sentences and 1 hour of training, already some quite good results...
+# Inference
+```shell
+# 推理准备, 下载wordnet
+pip install nltk
+mkdir ~/data/corpora && cd ~/data/corpora
+wget https://github.com/nltk/nltk_data/raw/gh-pages/packages/corpora/wordnet.zip && unzip wordnet.zip
+cd ~ && ln -s ~/data ~/nltk_data
 
-# Features still to add
+# 推理
+python translate.py -load_weights weights -src_lang en_core_web_sm -trg_lang fr_core_news_sm
+```
+- 支持单句翻译和文件翻译, 按照运行中的文字提示操作. (文字提示的实现代码在translate.py L120-L153)
+- 推理指令中的 `weights` 即是训练时保存权重的文件夹.
+- 数据集中的部分字符不规范, 导致模型预测结果中可能包含一些字符编码.
+    - 例如, 训练集中有些空格是 `\u202f` 和 `\xa0` 类型, 导致部分翻译结果中包含该字符.
 
-- create validation set and get validation scores each epoch
-- function to show translations of sentences from training and validation sets
+## 1. 性能评估
+- BLEU评估: 推理时输入 `$config` 设置评估, 默认不评估.
+    - 评估函数是translate.py的calculate_bleu函数.

@@ -10,7 +10,7 @@ def init_vars(src, model, SRC, TRG, opt):
     src_mask = (src != SRC.vocab.stoi['<pad>']).unsqueeze(-2)
     e_output = model.encoder(src, src_mask)
     
-    outputs = torch.LongTensor([[init_tok]], device=opt.device)
+    outputs = torch.tensor([[init_tok]], dtype=torch.int64, device=opt.device)
 
     trg_mask = nopeak_mask(1, opt)
     
@@ -36,7 +36,7 @@ def k_best_outputs(outputs, out, log_scores, i, k):
     log_probs = torch.Tensor([math.log(p) for p in probs.data.view(-1)]).view(k, -1) + log_scores.transpose(0,1)
     k_probs, k_ix = log_probs.view(-1).topk(k)
     
-    row = k_ix // k
+    row = torch.div(k_ix, k, rounding_mode='floor')
     col = k_ix % k
 
     outputs[:, :i] = outputs[row, :i]
@@ -81,6 +81,7 @@ def beam_search(src, model, SRC, TRG, opt):
             break
     
     if ind is None:
+        return 'translation error'
         length = (outputs[0]==eos_tok).nonzero()[0]
         return ' '.join([TRG.vocab.itos[tok] for tok in outputs[0][1:length]])
     
