@@ -10,7 +10,7 @@ conda install -c pytorch torchtext
 pip install pytz six spacy
 ```
 - 上述torchtext包的安装指令可能会导致安装cpu版的torch. 如果安装了cpu版本, 建议下载whl文件本地安装 (百度).
-    - cuda_11.3选用的whl文件: torch-1.10.0+cu113-cp38-cp38-linux_x86_64.whl 和 torchtext-0.11.0-cp38-cp38-linux_x86_64.whl
+    - cuda_11.3选用的[whl文件](https://download.pytorch.org/whl/): torch-1.10.0+cu113-cp38-cp38-linux_x86_64.whl 和 torchtext-0.11.0-cp38-cp38-linux_x86_64.whl
 
 # Preparation
 ```shell
